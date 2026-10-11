@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="manifest.json">
+<title>Multfilm Studiya v3</title>
+<style>
+:root{--bg:#16181d;--p:#1f232b;--p2:#2a2f3a;--t:#e8eaf0;--a:#ff9f1c;--b:#3a86ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t);font:13px system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+button,select,input{font:inherit;color:var(--t);background:var(--p2);border:1px solid #3b4150;border-radius:6px;padding:5px 8px}
+button{cursor:pointer}button:hover{background:#363c4a}button.on{background:var(--b);border-color:var(--b)}
+input[type=number]{width:56px}input[type=color]{padding:0;width:34px;height:28px}
+header{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;background:var(--p)}
+header label{display:flex;gap:4px;align-items:center}
+main{flex:1;display:flex;min-height:0}
+#tools{width:92px;background:var(--p);padding:6px;display:flex;flex-direction:column;gap:5px;overflow:auto}
+#tools button{width:100%;text-align:left}
+#mid{flex:1;display:flex;align-items:center;justify-content:center;padding:8px;min-width:0}
+#stage{max-width:100%;max-height:100%;aspect-ratio:16/9;background:#fff;border-radius:6px;touch-action:none;cursor:crosshair;box-shadow:0 4px 24px #0008}
+#side{width:210px;background:var(--p);padding:8px;overflow:auto}
+#side h4{margin:4px 0 6px}
+.tr{background:var(--p2);border-radius:6px;padding:6px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;gap:4px}
+#bot{height:190px;background:var(--p);display:flex;border-top:1px solid #000}
+#lc{width:150px;border-right:1px solid #000;display:flex;flex-direction:column}
+#lbar{display:flex;gap:3px;padding:2px;height:18px;align-items:center}
+#lbar button{padding:0 6px;font-size:11px;line-height:16px}
+#ll{overflow:hidden}
+.lr{height:24px;display:flex;align-items:center;gap:6px;padding:0 6px;border-bottom:1px solid #0004;cursor:pointer;white-space:nowrap}
+.lr.on{background:#2f4a6b}.lr b{font-weight:400;cursor:pointer}
+#ts{flex:1;overflow:auto}#tl{display:block;cursor:pointer}
+.hint{color:#9aa;font-size:11px;line-height:1.4}
+.progress{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#000d;padding:24px 48px;border-radius:12px;font-size:18px;display:none;z-index:999;text-align:center}
+.progress.show{display:block}
+</style>
+</head>
+<body>
+
+<header>
+<button id="bp">▶ Ijro</button><button id="bs">■</button>
+<button id="pv">◀</button><b id="fl" style="min-width:56px;text-align:center">1 / 48</b><button id="nx">▶</button>
+<label>FPS <input id="fps" type="number" min="1" max="30" value="12"></label>
+<label>Kadrlar <input id="tot" type="number" min="2" max="600" value="48"></label>
+<label>Oraliq <select id="ease"><option value="smooth">Yumshoq</option><option value="linear">Tekis</option></select></label>
+<label><input type="checkbox" id="onion" checked> Soya</label>
+<label><input type="checkbox" id="loop" checked> Takror</label>
+<label>Fon <input type="color" id="bg" value="#ffffff"></label>
+<span style="flex:1"></span>
+<button id="sv">💾 Saqlash</button><button id="ld">📂 Ochish</button><input type="file" id="lf" accept=".json" hidden>
+<button id="ex" style="background:var(--a);color:#000">🎬 Video yuklab olish (WebM)</button>
+</header>
+
+<main>
+<div id="tools">
+<button data-t="pen" class="on">✏️ Qalam</button><button data-t="eraser">🧽 O'chirg'ich</button>
+<button data-t="move">✥ Ko'chirish</button><button data-t="rotate">⟳ Burish</button><button data-t="scale">⤢ Kattalik</button><button data-t="pivot">⊕ Bo'g'im</button>
+<label>Rang<input type="color" id="col" value="#222222"></label>
+<label>Qalinlik<input type="range" id="size" min="1" max="60" value="8" style="width:100%"></label>
+<label><input type="checkbox" id="all"> Hammasi birga</label>
+<button id="undo">↶ Bekor</button><button id="key">◆ Kalit kadr</button><button id="dk">◇ Kalitni o'chir</button>
+</div>
+<div id="mid"><canvas id="stage" width="800" height="450"></canvas></div>
+<div id="side">
+<h4>🎭 Tezkor personaj</h4>
+<button id="char" style="width:100%">🧍 Personaj qo'shish</button>
+<button id="walk" style="width:100%;margin-top:5px">🚶 Yurish animatsiyasi</button>
+<p class="hint">Personaj bo'laklarga bo'lingan (bosh, tana, qo'l, oyoq). "Yurish"ni bosing — o'zi yuradi.</p>
+<h4>🔊 Ovoz va dublyaj</h4>
+<button id="rec" style="width:100%">🎙 Dublyaj yozish</button>
+<button id="af" style="width:100%;margin-top:5px">🎵 Ovoz/musiqa qo'shish</button><input type="file" id="aff" accept="audio/*" hidden>
+<p class="hint">Dublyaj: kerakli kadrni tanlang → tugmani bosing → animatsiya ijro bo'lib, ovozingiz yoziladi.</p>
+<div id="trk"></div>
+<h4>📖 Qanday ishlaydi</h4>
+<p class="hint">1) Qatlamga chizing. 2) Kerakli kadrga o'ting va Ko'chirish / Burish / Kattalik bilan qo'ying — kalit kadr avtomatik yaratiladi. 3) Oradagi kadrlar o'zi to'ldiriladi. Space — ijro, ←/→ — kadr, Ctrl+Z — bekor.</p>
+</div>
+</main>
+
+<div id="bot"><div id="lc"><div id="lbar"><button id="la">＋</button><button id="ld2">－</button><span class="hint">Qatlamlar</span></div><div id="ll"></div></div><div id="ts"><canvas id="tl"></canvas></div></div>
+
+<div class="progress" id="prog">🎬 Video tayyorlanmoqda...<br><small id="progPct" style="font-size:14px;color:#aaa">0%</small></div>
+
+<script>
+const W=800,H=450,$=i=>document.getElementById(i),cv=$('stage'),cx=cv.getContext('2d'),CW=16,HH=18,RH=24;
+const S={fps:12,total:48,ease:'smooth',onion:true,loop:true,size:8,bg:'#ffffff'};
+let layers=[],act=null,cur=0,tool='pen',playing=false,exporting=false,undo=[],tracks=[],mr=null,exRec=null,t0=0,f0=0,drag=null;
+let audioCtx=null,exportDest=null,connectedNodes=new WeakMap();
+const mk=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c};
+const kf=l=>Object.keys(l.keys).map(Number).sort((a,b)=>a-b);
+
+function newLayer(n){
+  const l={name:n||'Qatlam '+(layers.length+1),px:W/2,py:H/2,vis:true,keys:{}};
+  layers.push(l);act=l;return l
+}
+
+// ============ TUZATILGAN pose() ============
+function pose(l,f){
+  const k=kf(l);
+  if(!k.length)return null;
+  // Birinchi keyframe'dan oldin — birinchisini qaytaramiz
+  if(f<=k[0])return l.keys[k[0]];
+  // Oxirgi keyframe'dan keyin — oxirgisini qaytaramiz
+  if(f>=k[k.length-1])return l.keys[k[k.length-1]];
+  // Oraliqda — interpolatsiya
+  let p=k[0];
+  for(const n of k){if(n<=f)p=n;}
+  const n=k.find(v=>v>f);
+  if(n===undefined)return l.keys[p];
+  const a=l.keys[p],b=l.keys[n];
+  let t=(f-p)/(n-p);
+  if(S.ease==='smooth')t=t*t*(3-2*t);
+  const L=(u,v)=>u+(v-u)*t;
+  return{c:a.c,x:L(a.x,b.x),y:L(a.y,b.y),r:L(a.r,b.r),s:L(a.s,b.s)}
+}
+
+function ensureKey(l,f){
+  if(l.keys[f])return l.keys[f];
+  const p=pose(l,f),c=mk();
+  if(p)c.getContext('2d').drawImage(p.c,0,0);
+  l.keys[f]={c,x:p?p.x:0,y:p?p.y:0,r:p?p.r:0,s:p?p.s:1};
+  return l.keys[f]
+}
+
+function drawLayer(g,l,f,al){
+  const p=pose(l,f);
+  if(!p||!l.vis)return;
+  g.save();g.globalAlpha=al;
+  g.translate(l.px+p.x,l.py+p.y);g.rotate(p.r);g.scale(p.s,p.s);g.translate(-l.px,-l.py);
+  g.drawImage(p.c,0,0);g.restore()
+}
+
+function loc(l,k,p){
+  const dx=p.x-(l.px+k.x),dy=p.y-(l.py+k.y),a=-k.r,c=Math.cos(a),s=Math.sin(a);
+  return{x:(dx*c-dy*s)/k.s+l.px,y:(dx*s+dy*c)/k.s+l.py}
+}
+
+function render(){
+  cx.fillStyle=S.bg;cx.fillRect(0,0,W,H);
+  const ed=!playing&&!exporting;
+  if(S.onion&&ed&&cur>0)layers.forEach(l=>drawLayer(cx,l,cur-1,.22));
+  layers.forEach(l=>drawLayer(cx,l,cur,1));
+  if(ed&&act){
+    const p=pose(act,cur),x=act.px+(p?p.x:0),y=act.py+(p?p.y:0);
+    cx.strokeStyle='#e63946';cx.lineWidth=2;
+    cx.beginPath();cx.arc(x,y,7,0,7);
+    cx.moveTo(x-11,y);cx.lineTo(x+11,y);cx.moveTo(x,y-11);cx.lineTo(x,y+11);cx.stroke()
+  }
+  $('fl').textContent=(cur+1)+' / '+S.total;
+  tl()
+}
+
+function tl(){
+  const c=$('tl'),g=c.getContext('2d');
+  c.width=S.total*CW;c.height=HH+Math.max(1,layers.length)*RH;
+  g.font='10px sans-serif';
+  g.fillStyle='#1b1e25';g.fillRect(0,0,c.width,c.height);
+  layers.forEach((l,i)=>{
+    const y=HH+i*RH;
+    if(l===act){g.fillStyle='#26364d';g.fillRect(0,y,c.width,RH)}
+    const k=kf(l);
+    g.fillStyle='#2f5b94';
+    for(let j=0;j<k.length-1;j++)g.fillRect(k[j]*CW+8,y+8,(k[j+1]-k[j])*CW,8);
+    g.fillStyle='#ff9f1c';
+    k.forEach(f=>{g.beginPath();g.arc(f*CW+8,y+12,5,0,7);g.fill()})
+  });
+  g.strokeStyle='#2c313c';g.fillStyle='#889';
+  for(let f=0;f<=S.total;f++){
+    g.beginPath();g.moveTo(f*CW,f%6?HH-4:0);g.lineTo(f*CW,c.height);g.stroke();
+    if(f%6==0&&f<S.total)g.fillText(f+1,f*CW+2,11)
+  }
+  g.fillStyle='#e6394688';g.fillRect(cur*CW,0,CW,c.height)
+}
+
+function ll(){
+  const d=$('ll');d.innerHTML='';
+  layers.forEach(l=>{
+    const r=document.createElement('div');
+    r.className='lr'+(l===act?' on':'');
+    r.innerHTML='<b>'+(l.vis?'👁':'—')+'</b><span></span>';
+    r.children[1].textContent=l.name;
+    r.children[0].onclick=e=>{e.stopPropagation();l.vis=!l.vis;ll();render()};
+    r.onclick=()=>{act=l;ll();render()};
+    r.ondblclick=()=>{const n=prompt('Qatlam nomi:',l.name);if(n){l.name=n;ll()}};
+    d.appendChild(r)
+  })
+}
+
+const pt=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}};
+
+function snap(ls){
+  const fr=cur,fs=ls.map(l=>{
+    const k=l.keys[fr];
+    if(!k)return()=>{delete l.keys[fr]};
+    const c=mk();c.getContext('2d').drawImage(k.c,0,0);
+    const o={...k};
+    return()=>{l.keys[fr]={...o,c}}
+  });
+  undo.push(()=>fs.forEach(f=>f()));
+  if(undo.length>40)undo.shift()
+}
+
+function stroke(k,l,a,b){
+  const g=k.c.getContext('2d'),A=loc(l,k,a),B=loc(l,k,b);
+  g.lineCap=g.lineJoin='round';
+  g.lineWidth=S.size*(tool==='eraser'?2.5:1)/k.s;
+  g.strokeStyle=$('col').value;
+  g.globalCompositeOperation=tool==='eraser'?'destination-out':'source-over';
+  g.beginPath();g.moveTo(A.x,A.y);g.lineTo(B.x,B.y);g.stroke();
+  g.globalCompositeOperation='source-over'
+}
+
+cv.onpointerdown=e=>{
+  if(playing||!act)return;
+  cv.setPointerCapture(e.pointerId);
+  const p=pt(e);
+  if(tool==='pivot'){
+    const k=pose(act,cur);
+    if(k){const q=loc(act,k,p);act.px=q.x;act.py=q.y}
+    render();return
+  }
+  const tg=(tool==='move'&&$('all').checked)?layers:[act];
+  snap(tg);
+  const ks=tg.map(l=>ensureKey(l,cur));
+  drag={p,ks};
+  if(tool==='pen'||tool==='eraser')stroke(ks[0],act,p,p);
+  render()
+};
+
+cv.onpointermove=e=>{
+  if(!drag)return;
+  const p=pt(e),lp=drag.p,k=drag.ks[0];
+  if(tool==='pen'||tool==='eraser')stroke(k,act,lp,p);
+  else if(tool==='move')drag.ks.forEach(q=>{q.x+=p.x-lp.x;q.y+=p.y-lp.y});
+  else{
+    const x0=act.px+k.x,y0=act.py+k.y;
+    if(tool==='rotate')k.r+=Math.atan2(p.y-y0,p.x-x0)-Math.atan2(lp.y-y0,lp.x-x0);
+    else k.s=Math.max(.1,k.s*Math.hypot(p.x-x0,p.y-y0)/Math.max(5,Math.hypot(lp.x-x0,lp.y-y0)))
+  }
+  drag.p=p;render()
+};
+
+cv.onpointerup=()=>{drag=null;render()};
+
+function play(){
+  if(playing)return;
+  if(cur>=S.total-1)cur=0;
+  playing=true;f0=cur;t0=performance.now();
+  audioStart(cur/S.fps);
+  $('bp').textContent='⏸ Pauza';
+  loop()
+}
+
+function stop(){
+  if(!playing)return;
+  playing=false;$('bp').textContent='▶ Ijro';
+  audioStop();
+  if(mr&&mr.state==='recording')mr.stop();
+  render();ll()
+}
+
+function loop(){
+  if(!playing)return;
+  let f=f0+Math.floor((performance.now()-t0)/1000*S.fps);
+  if(f>=S.total){
+    if(S.loop&&!exporting&&!mr){
+      f0=0;t0=performance.now();f=0;audioStop();audioStart(0)
+    }else{
+      cur=S.total-1;stop();return
+    }
+  }
+  cur=f;render();requestAnimationFrame(loop)
+}
+
+// ============ OVOZ TIZIMI (tuzatilgan) ============
+function addTrack(name,url,start){
+  const el=new Audio(url);
+  el.crossOrigin='anonymous';
+  tracks.push({name,el,start,tm:0});
+  trk()
+}
+
+function trk(){
+  const d=$('trk');d.innerHTML='';
+  tracks.forEach((t,i)=>{
+    const r=document.createElement('div');r.className='tr';
+    r.innerHTML='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span><small>'+t.start.toFixed(1)+'s</small><button>✕</button>';
+    r.children[0].textContent='🔊 '+t.name;
+    r.children[2].onclick=()=>{t.el.pause();tracks.splice(i,1);trk()};
+    r.children[1].title='Boshlanish vaqti';
+    r.children[1].style.cursor='pointer';
+    r.children[1].onclick=()=>{
+      const v=parseFloat(prompt('Boshlanish vaqti (soniya):',t.start));
+      if(!isNaN(v)){t.start=Math.max(0,v);trk()}
+    };
+    d.appendChild(r)
+  })
+}
+
+function audioStart(t){
+  tracks.forEach(x=>{
+    clearTimeout(x.tm);
+    const d=x.start-t;
+    if(d>=0){x.el.currentTime=0;x.tm=setTimeout(()=>x.el.play().catch(()=>{}),d*1000)}
+    else{x.el.currentTime=-d;x.el.play().catch(()=>{})}
+  })
+}
+
+function audioStop(){
+  tracks.forEach(x=>{clearTimeout(x.tm);x.el.pause()})
+}
+
+$('af').onclick=()=>$('aff').click();
+$('aff').onchange=e=>{
+  const f=e.target.files[0];
+  if(f)addTrack(f.name,URL.createObjectURL(f),cur/S.fps);
+  e.target.value=''
+};
+
+$('rec').onclick=async()=>{
+  if(mr){mr.stop();return}
+  stop();
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({audio:true}),ch=[],s0=cur/S.fps;
+    mr=new MediaRecorder(st);
+    mr.ondataavailable=e=>ch.push(e.data);
+    mr.onstop=()=>{
+      st.getTracks().forEach(t=>t.stop());
+      addTrack('Dublyaj '+(tracks.length+1),URL.createObjectURL(new Blob(ch,{type:mr.mimeType})),s0);
+      mr=null;$('rec').textContent='🎙 Dublyaj yozish';stop()
+    };
+    mr.start();
+    $('rec').textContent='⏹ Yozishni tugatish';
+    play()
+  }catch(err){
+    mr=null;alert('Mikrofon ishlamadi: '+err.message)
+  }
+};
+
+// ============ VIDEO EKSPORT (TUZATILGAN) ============
+$('ex').onclick=async()=>{
+  if(!window.MediaRecorder){
+    alert('Brauzer video yozishni qo\'llamaydi. Chrome ishlating.');
+    return
+  }
+  stop();
+  exporting=true;
+  $('prog').classList.add('show');
+  $('progPct').textContent='0%';
+
+  // AudioContext faqat bir marta yaratiladi
+  if(!audioCtx) audioCtx=new AudioContext();
+  if(audioCtx.state==='suspended') await audioCtx.resume();
+  if(!exportDest) exportDest=audioCtx.createMediaStreamDestination();
+
+  // Har bir ovozni faqat BIR MARTA ulash
+  tracks.forEach(t=>{
+    if(!connectedNodes.has(t.el)){
+      try{
+        const node=audioCtx.createMediaElementSource(t.el);
+        node.connect(exportDest);
+        node.connect(audioCtx.destination);
+        connectedNodes.set(t.el,node)
+      }catch(e){
+        console.warn('Audio ulanishda xato:',e)
+      }
+    }
+  });
+
+  const vs=cv.captureStream(S.fps);
+  const ms=new MediaStream([
+    ...vs.getVideoTracks(),
+    ...exportDest.stream.getAudioTracks()
+  ]);
+
+  const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
+    .find(m=>MediaRecorder.isTypeSupported(m)) || 'video/webm';
+
+  const ch=[];
+  exRec=new MediaRecorder(ms,{mimeType:mime,videoBitsPerSecond:8e6});
+
+  exRec.ondataavailable=e=>{if(e.data.size)ch.push(e.data)};
+
+  exRec.onstop=()=>{
+    exporting=false;
+    $('prog').classList.remove('show');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob(ch,{type:'video/webm'}));
+    a.download='multfilm_'+Date.now()+'.webm';
+    a.click();
+    render()
+  };
+
+  // Video'ni real vaqtda yozish
+  exRec.start();
+  cur=0;
+
+  // Ovozlarni ham boshidan boshlash
+  audioStart(0);
+
+  // Animatsiya vaqtini real vaqtga moslashtirish
+  const startTime=performance.now();
+  const totalDuration=(S.total/S.fps)*1000;
+
+  function recordFrame(){
+    const elapsed=performance.now()-startTime;
+    const f=Math.floor(elapsed/1000*S.fps);
+
+    if(f>=S.total){
+      setTimeout(()=>exRec.stop(),300);
+      return
+    }
+
+    cur=f;
+    render();
+    $('progPct').textContent=Math.round((f/S.total)*100)+'%';
+    requestAnimationFrame(recordFrame)
+  }
+  recordFrame()
+};
+
+// ============ PERSONAJ ============
+function addChar(){
+  const col=$('col').value;
+  const ln=(g,a,b,c,d)=>{g.beginPath();g.moveTo(a,b);g.lineTo(c,d);g.stroke()};
+  const P=[
+    ['Oyoq chap',150,300,g=>ln(g,150,300,132,372)],
+    ['Oyoq o\'ng',150,300,g=>ln(g,150,300,168,372)],
+    ['Tana',150,265,g=>ln(g,150,232,150,300)],
+    ['Qo\'l chap',150,245,g=>ln(g,150,245,122,290)],
+    ['Qo\'l o\'ng',150,245,g=>ln(g,150,245,178,290)],
+    ['Bosh',150,232,g=>{
+      g.beginPath();g.arc(150,200,32,0,7);g.stroke();
+      g.fillStyle=col;g.fillRect(138,192,7,7);g.fillRect(156,192,7,7);
+      g.beginPath();g.arc(150,206,12,.2,2.9);g.lineWidth=4;g.stroke()
+    }]
+  ];
+  P.forEach(([n,x,y,fn])=>{
+    const l=newLayer(n);
+    l.px=x;l.py=y;
+    const g=ensureKey(l,0).c.getContext('2d');
+    g.lineWidth=9;g.lineCap='round';g.strokeStyle=col;
+    fn(g)
+  });
+  act=layers[layers.length-1];ll();render()
+}
+
+$('char').onclick=addChar;
+
+$('walk').onclick=()=>{
+  if(!layers.some(l=>l.name==='Tana'))addChar();
+  S.total=Math.max(S.total,25);
+  $('tot').value=S.total;
+  const ph={'Oyoq chap':1,'Oyoq o\'ng':-1,'Qo\'l chap':-1,'Qo\'l o\'ng':1,'Tana':0,'Bosh':0};
+  const sw=[.5,0,-.5,0,.5];
+  layers.filter(l=>l.name in ph).forEach(l=>{
+    [0,6,12,18,24].forEach((f,i)=>{
+      const k=ensureKey(l,f);
+      k.x=12.5*f;
+      k.y=(f==6||f==18)?-6:0;
+      k.r=ph[l.name]*sw[i]
+    })
+  });
+  render()
+};
+
+// ============ BOSHQARUV ============
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{
+  tool=b.dataset.t;
+  document.querySelectorAll('[data-t]').forEach(x=>x.classList.toggle('on',x===b))
+});
+
+$('bp').onclick=()=>playing?stop():play();
+$('bs').onclick=()=>{stop();cur=0;render()};
+$('pv').onclick=()=>{stop();cur=Math.max(0,cur-1);render()};
+$('nx').onclick=()=>{stop();cur=Math.min(S.total-1,cur+1);render()};
+$('fps').onchange=e=>S.fps=Math.min(30,Math.max(1,+e.target.value||12));
+$('tot').onchange=e=>{
+  S.total=Math.min(600,Math.max(2,+e.target.value||48));
+  cur=Math.min(cur,S.total-1);render()
+};
+$('ease').onchange=e=>{S.ease=e.target.value;render()};
+$('onion').onchange=e=>{S.onion=e.target.checked;render()};
+$('loop').onchange=e=>S.loop=e.target.checked;
+$('bg').oninput=e=>{S.bg=e.target.value;render()};
+$('size').oninput=e=>S.size=+e.target.value;
+$('undo').onclick=()=>{const u=undo.pop();if(u){u();render()}};
+$('key').onclick=()=>{if(act){snap([act]);ensureKey(act,cur);render()}};
+$('dk').onclick=()=>{if(act&&kf(act).length>1){snap([act]);delete act.keys[cur];render()}};
+$('la').onclick=()=>{newLayer();ll();render()};
+$('ld2').onclick=()=>{
+  if(layers.length>1&&confirm('Tanlangan qatlam o\'chirilsinmi?')){
+    layers.splice(layers.indexOf(act),1);
+    act=layers[0];ll();render()
+  }
+};
+
+const scrub=e=>{
+  const r=$('tl').getBoundingClientRect();
+  const f=Math.floor((e.clientX-r.left)/CW);
+  const row=Math.floor((e.clientY-r.top-HH)/RH);
+  if(f<0||f>=S.total)return;
+  stop();cur=f;
+  if(layers[row])act=layers[row];
+  ll();render()
+};
+
+let sd=false;
+$('tl').onpointerdown=e=>{sd=true;scrub(e)};
+$('tl').onpointermove=e=>{if(sd)scrub(e)};
+addEventListener('pointerup',()=>sd=false);
+
+addEventListener('keydown',e=>{
+  if(/INPUT|SELECT/.test(e.target.tagName)&&e.target.type!=='checkbox'&&e.target.type!=='range')return;
+  if(e.code==='Space'){e.preventDefault();playing?stop():play()}
+  else if(e.key==='ArrowLeft')$('pv').click();
+  else if(e.key==='ArrowRight')$('nx').click();
+  else if(e.key==='k')$('key').click();
+  else if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();$('undo').click()}
+});
+
+// ============ SAQLASH / OCHISH ============
+$('sv').onclick=()=>{
+  const d={
+    S,cur,
+    layers:layers.map(l=>({
+      name:l.name,px:l.px,py:l.py,vis:l.vis,
+      keys:Object.fromEntries(kf(l).map(f=>{
+        const k=l.keys[f];
+        return[f,{x:k.x,y:k.y,r:k.r,s:k.s,img:k.c.toDataURL()}]
+      }))
+    }))
+  };
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(d)],{type:'application/json'}));
+  a.download='multfilm-loyiha.json';
+  a.click()
+};
+
+$('ld').onclick=()=>$('lf').click();
+
+$('lf').onchange=async e=>{
+  const f=e.target.files[0];
+  if(!f)return;
+  const d=JSON.parse(await f.text());
+  stop();Object.assign(S,d.S);layers=[];
+  for(const o of d.layers){
+    const l={name:o.name,px:o.px,py:o.py,vis:o.vis,keys:{}};
+    layers.push(l);
+    for(const fr in o.keys){
+      const q=o.keys[fr],c=mk(),im=new Image();
+      im.src=q.img;
+      await im.decode();
+      c.getContext('2d').drawImage(im,0,0);
+      l.keys[fr]={c,x:q.x,y:q.y,r:q.r,s:q.s}
+    }
+  }
+  act=layers[0];cur=0;
+  $('fps').value=S.fps;$('tot').value=S.total;
+  $('ease').value=S.ease;$('bg').value=S.bg;
+  ll();render();e.target.value=''
+};
+
+newLayer();ll();render();
+console.log('🎬 Multfilm Studiya v3 tayyor!');
+</script>
+</body>
+</html>
